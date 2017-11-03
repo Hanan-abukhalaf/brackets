@@ -124,6 +124,7 @@ define(function (require, exports, module) {
      * Other constants
      */
     var DIVIDER = "---";
+    var SUBMENU = "SUBMENU";
 
     /**
      * Error Codes from Brackets Shell
@@ -740,6 +741,45 @@ define(function (require, exports, module) {
     //     NOT IMPLEMENTED
     // };
 
+    Menu.prototype.addSubMenu = function (name, menu, position, relativeID) {
+        var id = this.id + "-" + menu.id,
+            $menuItem;
+
+        if (!name || !menu) {
+            console.error("addSubMenu(): missing required parameters: command");
+            return null;
+        }
+
+        if (menuItemMap[id]) {
+            console.log("MenuItem added with same id of existing MenuItem: " + id);
+            return null;
+        }
+
+        // create MenuItem
+        var menuItem = new MenuItem(this.id + "-" +  menu.id, SUBMENU);
+        menuItemMap[id] = menuItem;
+
+        menu.parentMenuItem = menuItem;
+
+        // create MenuItem DOM
+        if (_isHTMLMenu(this.id)) {
+            // Create the HTML Menu
+            $menuItem = $("<li><a href='#' id='" + id + "'> <span class='menu-name'>" + name + "</span></a></li>");
+
+            $menuItem.hover(function() {
+                menu.open();
+            }, function() {
+                menu.close();
+            });
+            // Insert menu item
+            var $relativeElement = this._getRelativeMenuItem(relativeID, position);
+            _insertInList($("li#" + StringUtils.jQueryIdEscape(this.id) + " > ul.dropdown-menu"),
+            $menuItem, position, $relativeElement);
+        } else {
+            // TODO: add submenus for native menus
+        }
+        return menuItem;
+    };
     /**
      * Gets the Command associated with a MenuItem
      * @return {Command}
@@ -1048,7 +1088,7 @@ define(function (require, exports, module) {
      */
     ContextMenu.prototype.open = function (mouseOrLocation) {
 
-        if (!mouseOrLocation || !mouseOrLocation.hasOwnProperty("pageX") || !mouseOrLocation.hasOwnProperty("pageY")) {
+        if (!this.parentMenuItem && (!mouseOrLocation || !mouseOrLocation.hasOwnProperty("pageX") || !mouseOrLocation.hasOwnProperty("pageY"))) {
             console.error("ContextMenu open(): missing required parameter");
             return;
         }
@@ -1067,11 +1107,14 @@ define(function (require, exports, module) {
 
         this.trigger("beforeContextMenuOpen");
 
-        // close all other dropdowns
-        closeAll();
-
         // adjust positioning so menu is not clipped off bottom or right
-        var elementRect = {
+        if (this.parentMenuItem) { // If context menu is a submenu
+
+        } else {
+            // close all other dropdowns
+            closeAll();
+
+            var elementRect = {
                 top:    posTop,
                 left:   posLeft,
                 height: $menuWindow.height() + 25,
@@ -1079,15 +1122,16 @@ define(function (require, exports, module) {
             },
             clip = ViewUtils.getElementClipSize($window, elementRect);
 
-        if (clip.bottom > 0) {
-            posTop = Math.max(0, posTop - clip.bottom);
-        }
-        posTop -= 30;   // shift top for hidden parent element
-        posLeft += 5;
+            if (clip.bottom > 0) {
+                posTop = Math.max(0, posTop - clip.bottom);
+            }
+            posTop -= 30;   // shift top for hidden parent element
+            posLeft += 5;
 
 
-        if (clip.right > 0) {
-            posLeft = Math.max(0, posLeft - clip.right);
+            if (clip.right > 0) {
+                posLeft = Math.max(0, posLeft - clip.right);
+            }
         }
 
         // open the context menu at final location
